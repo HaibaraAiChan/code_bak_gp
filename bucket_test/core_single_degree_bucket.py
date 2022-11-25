@@ -227,67 +227,9 @@ def _bucketing(val, degree):
         eqidx = F.nonzero_1d(F.equal(sorted_val, v))
         bkt_idx.append(F.gather_row(idx, eqidx))
         unique_val = np.asarray(list([degree.item()]))
-    # My_selected_degree = 2
-    # unique_val = [My_selected_degree]
-    
-    # for v in unique_val:
-    #     eqidx = F.nonzero_1d(F.equal(sorted_val, v))
-    #     temp = F.gather_row(idx, eqidx)
-    #     bkt_idx.append(F.gather_row(idx, eqidx))
-    #     print('bucketing info ===========------------=============')
-    #     print(eqidx)
-    #     print(F.gather_row(idx, eqidx))
-    #     print('bucketing info ===========------------=============')
 
-    #--------------------------------------------------------------*-replaced part
-    # for v in unique_val:
-    #     eqidx = F.nonzero_1d(F.equal(sorted_val, v))
-    #     tmp = F.gather_row(idx, eqidx)
-    #     if v ==  unique_val[-1]:
-    #         nn = len(tmp)//2
-    #         bkt_idx.append(tmp[:nn+1])
-    #         bkt_idx.append(tmp[nn+1:])
-    #     else:
-    #         bkt_idx.append(tmp)
+   
 
-    # unique_val = np.append(unique_val,unique_val[-1]) # add the number of largest degree
-
-    #--------------------------------------------------------------- 4 splits 
-    # for v in unique_val:
-    #     eqidx = F.nonzero_1d(F.equal(sorted_val, v))
-    #     tmp = F.gather_row(idx, eqidx)
-    #     if v ==  unique_val[-1]:
-    #         nn = len(tmp)//4
-    #         bkt_idx.append(tmp[:nn+1])
-    #         bkt_idx.append(tmp[nn+1:2*nn+1])
-    #         bkt_idx.append(tmp[2*nn+1:3*nn+1])
-    #         bkt_idx.append(tmp[3*nn+1:])
-    #     else:
-    #         bkt_idx.append(tmp)
-
-    # unique_val = np.append(unique_val,unique_val[-1]) # add the number of largest degree
-    # unique_val = np.append(unique_val,unique_val[-1])
-    # unique_val = np.append(unique_val,unique_val[-1])
-    # unique_val = np.append(unique_val,unique_val[-1])
-    #--------------------------------------------------------------- 
-    #--------------------------------------------------------------- N splits 
-    # num_split = 16                                                 # N = 16
-    # for v in unique_val:
-    #     eqidx = F.nonzero_1d(F.equal(sorted_val, v))
-    #     tmp = F.gather_row(idx, eqidx)
-    #     if v ==  unique_val[-1]:
-    #         nn = len(tmp)//num_split
-    #         bkt_idx.append(tmp[:nn+1])
-    #         for i in range(1,num_split-1):
-    #             bkt_idx.append(tmp[i*nn+1:((i+1)*nn+1)])
-    #         bkt_idx.append(tmp[(num_split-1)*nn+1:])
-    #     else:
-    #         bkt_idx.append(tmp)
-    # tail_degree = unique_val[-1]
-    # for i in range(num_split):
-    #     unique_val = np.append(unique_val,tail_degree) # add the number of largest degree
-    
-    #--------------------------------------------------------------- 
     def bucketor(data):
         bkts = [F.gather_row(data, idx) for idx in bkt_idx]
         return bkts
