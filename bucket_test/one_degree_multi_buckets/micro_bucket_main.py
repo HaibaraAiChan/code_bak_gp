@@ -265,17 +265,55 @@ def run(args, device, data):
 				local_nid_2_global = dict(zip(range(len(src_nid)), src_nid.tolist()))
     
 				blocks = [block.int().to(device) for block in blocks]#------------*
+				# find out the degrees you need to group, single degree bucket or need to split
+				# e.g. (1-9) degree group, degree 10 split into 4 parts
 				
-				for deg in unique_degrees:
-					if torch.equal(deg,torch.tensor(10,dtype=torch.long)):
-						num_split = 4
+				unique_degrees_cut = unique_degrees[:-1] # single degree buckets-----------
+				for deg in unique_degrees_cut:
+					
+					bucket_outputs = idx[ sorted_val == deg].int().to(device)
+					eid_bkt_in = blocks[0].in_edges(bucket_outputs, form="all")[0] # full batch block: local eid
+					
+					c=OrderedCounter(eid_bkt_in.tolist())
+					list(map(c.__delitem__, filter(c.__contains__, bucket_outputs.tolist())))
+					r_=list(c.keys())
+					bucket_inputs_local = torch.tensor(bucket_outputs.tolist() + r_, dtype=torch.long).tolist()
+					# local to global
+					bucket_inputs = list(map(local_nid_2_global.get, bucket_inputs_local))
+
+					# batch_pred = model(blocks, batch_inputs)
+					deg = torch.tensor(deg.item(), dtype=torch.int32)
+					if args.GPUmem:
+						see_memory_usage("----------------------------------------- before batch_pred = model(blocks, batch_inputs, deg.to(device)) ")
+					batch_pred = model(blocks, batch_inputs, deg.to(device), num_split, step)
+					if args.GPUmem:
+						see_memory_usage("----------------------------------------- after batch_pred = model(blocks, batch_inputs, deg.to(device)) ")
+					bucket_pred, bucket_labels = load_bucket_labels( bucket_outputs, batch_pred, blocks, labels, device)
+					bucket_loss = loss_fcn(bucket_pred, bucket_labels)
+					
+					ratio = len(bucket_pred)/len(dst_nid)
+					bucket_loss = bucket_loss * ratio
+					n_output = len(bucket_pred)
+					bucket_loss_item = bucket_loss.cpu().detach()
+					print('degree: '+str(deg.item())+' # of output: '+str(n_output)+' ratio: '+str(ratio) + ' bucket_loss : '+ str(bucket_loss_item))
+					
+					loss_sum.append(bucket_loss_item ) 
+					
+					bucket_loss.backward()
+					if args.GPUmem:
+						see_memory_usage("----------------------------------------- after loss backward ")
+					# single degree buckets-----------end
+				#===----===---===-----=== degree need to split, here we use the last degree 10 as an example
+				degree = unique_degrees[-1] 
+				if torch.equal(degree, torch.tensor(10, dtype=torch.long)):
+					num_split = 4
 					bucket_outputs_full = []
 					if num_split >= 0:
 						for step in range(num_split):
-							print('step: ', step)
+							# print('step: ', step)
 							if step == 0:
 								# bucket_outputs_full = []
-								bucket_outputs_full = idx[ sorted_val == deg].int().to(device)
+								bucket_outputs_full = idx[ sorted_val == degree].int().to(device)
 								N = math.ceil(len(bucket_outputs_full)/num_split)
 							bucket_outputs = bucket_outputs_full[step*N:(step+1)*N]
 							eid_bkt_in = blocks[0].in_edges(bucket_outputs, form="all")[0] # full batch block: local eid
@@ -288,10 +326,10 @@ def run(args, device, data):
 							bucket_inputs = list(map(local_nid_2_global.get, bucket_inputs_local))
 
 							# batch_pred = model(blocks, batch_inputs)
-							deg = torch.tensor(deg.item(), dtype=torch.int32)
+							degree = torch.tensor(degree.item(), dtype=torch.int32)
 							if args.GPUmem:
 								see_memory_usage("----------------------------------------- before batch_pred = model(blocks, batch_inputs, deg.to(device)) ")
-							batch_pred = model(blocks, batch_inputs, deg.to(device), num_split, step)
+							batch_pred = model(blocks, batch_inputs, degree.to(device), num_split, step)
 							if args.GPUmem:
 								see_memory_usage("----------------------------------------- after batch_pred = model(blocks, batch_inputs, deg.to(device)) ")
 							bucket_pred, bucket_labels = load_bucket_labels( bucket_outputs, batch_pred, blocks, labels, device)
@@ -301,7 +339,7 @@ def run(args, device, data):
 							bucket_loss = bucket_loss * ratio
 							n_output = len(bucket_pred)
 							bucket_loss_item = bucket_loss.cpu().detach()
-							print('degree: '+str(deg.item())+' # of output: '+str(n_output)+' ratio: '+str(ratio) + ' bucket_loss : '+ str(bucket_loss_item))
+							print('degree: '+str(degree.item())+' step: '+str(step)+' # of output: '+str(n_output)+' ratio: '+str(ratio) + ' bucket_loss : '+ str(bucket_loss_item))
 							
 							loss_sum.append(bucket_loss_item ) 
 							
@@ -309,40 +347,6 @@ def run(args, device, data):
 							if args.GPUmem:
 								see_memory_usage("----------------------------------------- after loss backward ")
 							
-						
-					# else:
-					# 	bucket_outputs = idx[ sorted_val == deg].int().to(device)
-					# 	eid_bkt_in = blocks[0].in_edges(bucket_outputs, form="all")[0] # full batch block: local eid
-						
-					# 	c=OrderedCounter(eid_bkt_in.tolist())
-					# 	list(map(c.__delitem__, filter(c.__contains__, bucket_outputs.tolist())))
-					# 	r_=list(c.keys())
-					# 	bucket_inputs_local = torch.tensor(bucket_outputs.tolist() + r_, dtype=torch.long).tolist()
-					# 	# local to global
-					# 	bucket_inputs = list(map(local_nid_2_global.get, bucket_inputs_local))
-
-					# 	# batch_pred = model(blocks, batch_inputs)
-					# 	deg = torch.tensor(deg.item(), dtype=torch.int32)
-					# 	if args.GPUmem:
-					# 		see_memory_usage("----------------------------------------- before batch_pred = model(blocks, batch_inputs, deg.to(device)) ")
-					# 	batch_pred = model(blocks, batch_inputs, deg.to(device), num_split, step)
-					# 	if args.GPUmem:
-					# 		see_memory_usage("----------------------------------------- after batch_pred = model(blocks, batch_inputs, deg.to(device)) ")
-					# 	bucket_pred, bucket_labels = load_bucket_labels( bucket_outputs, batch_pred, blocks, labels, device)
-					# 	bucket_loss = loss_fcn(bucket_pred, bucket_labels)
-					
-					
-					# ratio = len(bucket_pred)/len(dst_nid)
-					# bucket_loss = bucket_loss * ratio
-					# n_output = len(bucket_pred)
-					# bucket_loss_item = bucket_loss.cpu().detach()
-					# print('degree: '+str(deg.item())+' # of output: '+str(n_output)+' ratio: '+str(ratio) + ' bucket_loss : '+ str(bucket_loss_item))
-					
-					# loss_sum.append(bucket_loss_item ) 
-					
-					# bucket_loss.backward()
-					# if args.GPUmem:
-					# 	see_memory_usage("----------------------------------------- after loss backward ")
 				print('-------------------------------------------------------loss_sum  : ', sum(loss_sum))
 				# print('---------------------------------------------------------------     loss_sum : ', sum(loss_sum_))
 				optimizer.step()
@@ -418,7 +422,7 @@ def main():
 
 	# argparser.add_argument('--balanced_init_ratio', type=float, default=0.2)
 	argparser.add_argument('--num-runs', type=int, default=1)
-	argparser.add_argument('--num-epochs', type=int, default=10)
+	argparser.add_argument('--num-epochs', type=int, default=1)
 
 	argparser.add_argument('--num-hidden', type=int, default=6)
 
