@@ -140,8 +140,8 @@ def invoke_udf_reduce(graph, func, msgdata, degree, num_split, step, *, orig_nid
                 unique_degs, bucketor = _bucketing(degs, degree=degree, num_split=num_split,step=step)
             else: # step == -1, not split degree bucket
                 unique_degs, bucketor = _bucketing(degs, degree=degree, num_split=-1, step=-1)
-    # else:
-    #     unique_degs, bucketor = _bucketing(degs, degree=degree, num_split=-1, step=-1)
+    else:
+        unique_degs, bucketor = _bucketing(degs, degree=degree, num_split=-1, step=-1)
     #--------------------------------------------------------------------new added end
     # degree bucketing
     # unique_degs, bucketor = _bucketing(degs) # original code
